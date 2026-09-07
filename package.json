@@ -52,12 +52,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/siddharthm10/dsh-gbrain.git"
+    "url": "git+https://github.com/Siddharthm10/dsh-gbrain.git"
   },
   "bugs": {
-    "url": "https://github.com/siddharthm10/dsh-gbrain/issues"
+    "url": "https://github.com/Siddharthm10/dsh-gbrain/issues"
   },
-  "homepage": "https://github.com/siddharthm10/dsh-gbrain#readme",
+  "homepage": "https://github.com/Siddharthm10/dsh-gbrain#readme",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/schemastery": "^3.18.1",
