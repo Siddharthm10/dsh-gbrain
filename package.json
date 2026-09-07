@@ -4,7 +4,7 @@
   "description": "DeepSeek Harness control panel for gbrain brains: health + per-source status, manual search/query QC, a configurable embedding model (any provider:model, base URL, key — applied live via gbrain config), embed-now with progress, and a CPU/GPU embed-container toggle. The gbrain CLI stays the contract; this plugin only drives and shows it.",
   "type": "module",
   "license": "MIT",
-  "author": "Yunado",
+  "author": "siddharthm10",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
@@ -52,12 +52,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Yunado/dsh-gbrain.git"
+    "url": "git+https://github.com/siddharthm10/dsh-gbrain.git"
   },
   "bugs": {
-    "url": "https://github.com/Yunado/dsh-gbrain/issues"
+    "url": "https://github.com/siddharthm10/dsh-gbrain/issues"
   },
-  "homepage": "https://github.com/Yunado/dsh-gbrain#readme",
+  "homepage": "https://github.com/siddharthm10/dsh-gbrain#readme",
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/schemastery": "^3.18.1",
