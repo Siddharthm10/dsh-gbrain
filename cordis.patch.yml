@@ -1,0 +1,25 @@
+# Bundle patch layer: the gbrain control panel's default config row.
+# The row is the settings base value; the user layer (Settings -> GBrian)
+# overrides it. Every field is overridable there — including pointing the
+# panel at an EXISTING brain on the server via `gbrainHome`.
+#
+# No secrets in this row: the embed-server key default is empty. Set it in
+# the settings tab (it is persisted in the profile settings document and
+# copied into the brain's .env by "Apply & verify").
+- insert:
+    - id: gbrain
+      name: dsh-gbrain
+      config:
+        gbrainHome: ""
+        bunBin: bun
+        gbrainBin: ""
+        embedServerBaseURL: http://127.0.0.1:8811/v1
+        embedServerAPIKey: ""
+        embeddingModel: llama-server:qwen3-embed
+        embeddingDimensions: 1024
+        containerName: gbrain-embed
+        containerImage: ghcr.io/ggml-org/llama.cpp:server-cuda
+        containerModelPath: /models/Qwen3-Embedding-0.6B-Q8_0.gguf
+        modelHostDir: /home/siddharthm10/models/llama-cache
+        containerHostPort: 8811
+        device: cpu

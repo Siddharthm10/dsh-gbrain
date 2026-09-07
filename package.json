@@ -1,0 +1,70 @@
+{
+  "name": "dsh-gbrain",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness control panel for gbrain brains: health + per-source status, manual search/query QC, a configurable embedding model (any provider:model, base URL, key — applied live via gbrain config), embed-now with progress, and a CPU/GPU embed-container toggle. The gbrain CLI stays the contract; this plugin only drives and shows it.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Yunado",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "/config": "./src/config.js",
+    "/gbrain": "./src/gbrain.js",
+    "/routes": "./src/routes.js",
+    "/client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "lib",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.14"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "build:client": "node scripts/build-client.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "gbrain",
+    "embedding",
+    "llama-server",
+    "search",
+    "plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yunado/dsh-gbrain.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Yunado/dsh-gbrain/issues"
+  },
+  "homepage": "https://github.com/Yunado/dsh-gbrain#readme",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "react": "^18.2.0"
+  }
+}
