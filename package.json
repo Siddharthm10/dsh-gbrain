@@ -1,6 +1,6 @@
 {
   "name": "dsh-gbrain",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DeepSeek Harness control panel for gbrain brains: health + per-source status, manual search/query QC, a configurable embedding model (any provider:model, base URL, key — applied live via gbrain config), embed-now with progress, and a CPU/GPU embed-container toggle. The gbrain CLI stays the contract; this plugin only drives and shows it.",
   "type": "module",
   "license": "MIT",
@@ -8,10 +8,10 @@
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
-    "/config": "./src/config.js",
-    "/gbrain": "./src/gbrain.js",
-    "/routes": "./src/routes.js",
-    "/client": "./lib/client.js",
+    "./config": "./src/config.js",
+    "./gbrain": "./src/gbrain.js",
+    "./routes": "./src/routes.js",
+    "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
