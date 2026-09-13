@@ -1,11 +1,13 @@
 /**
  * The GBrian settings section: the Settings tab's persisted namespace.
  *
- * The host registers this namespace (via `settings.installSection`) with the
+ * The host registers this namespace (via `installSettingsSection` from
+ * `@deepseek-ai/dsh-settings` — dsh-harness rc2-compat host) with the
  * cordis.patch.yml row as the composition base; the browser tab reads and
- * writes it through the settings Remote, and the server half resolves the
- * value live on every route call so a saved change applies immediately —
- * including pointing the panel at a different brain (gbrainHome).
+ * writes it through the settings client on the `connection` seam, and the
+ * server half resolves the value live on every route call so a saved change
+ * applies immediately — including pointing the panel at a different brain
+ * (gbrainHome).
  *
  * Schema field names match `resolveConfig`'s output one-to-one.
  *

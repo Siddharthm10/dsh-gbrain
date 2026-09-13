@@ -19,6 +19,11 @@
  * React.createElement. The loader id is the PACKAGE name (`dsh-gbrain`),
  * not the `name` export.
  *
+ * dsh-harness rc2-compat host: the rc.2 web realm has no `remote.settings`
+ * service, so the settings namespace is read/written through the typed
+ * client on the `connection` seam (`connection.api.settings.describe` /
+ * `.replace`) and responses arrive wrapped in `result`.
+ *
  * @module dsh-gbrain/client
  */
 import React from 'react'
@@ -119,6 +124,7 @@ const COPY = {
     saving: 'Saving…',
     saved: 'Saved',
     conflict: 'Settings changed elsewhere — reloaded, please retry.',
+    saveError: 'Save failed: {detail}',
     notFound: 'This section is not registered (server half missing?).',
     detail: 'detail',
     rawOutput: 'output',
@@ -208,6 +214,7 @@ const COPY = {
     saving: '保存中…',
     saved: '已保存',
     conflict: '设置在他处被修改——已重新加载，请重试。',
+    saveError: '保存失败：{detail}',
     notFound: '该分区未注册（缺少服务端？）。',
     detail: '详情',
     rawOutput: '输出',
@@ -383,10 +390,14 @@ function GbrainSectionEntry({ useLocale, load, save }) {
       const result = await save(view, draft)
       if (result.ok) {
         setState((s) => ({ ...s, busy: false, saved: true, view: result.value, draft: { ...result.value.value } }))
-      } else {
+      } else if (result.code === 'settings-conflict' || result.code === 'settings/conflict') {
+        // dsh-harness rc2-compat host: a revision conflict (old and new wire
+        // codes) reloads the fresh view; anything else surfaces the wire error.
         const fresh = await load()
         if (fresh.ok) setState({ status: 'ready', error: t.conflict, view: fresh.value, draft: { ...fresh.value.value }, busy: false, saved: false })
-        else setState((s) => ({ ...s, busy: false, error: String(result.error ?? result.code ?? 'save failed') }))
+        else setState((s) => ({ ...s, busy: false, error: t.saveError.replace('{detail}', String(fresh.error ?? '')) }))
+      } else {
+        setState((s) => ({ ...s, busy: false, error: t.saveError.replace('{detail}', String(result.error ?? result.code ?? 'save failed')) }))
       }
     } catch (error) {
       setState((s) => ({ ...s, busy: false, error: String(error?.message ?? error) }))
@@ -638,7 +649,7 @@ function GbrainSectionEntry({ useLocale, load, save }) {
 // ---------------------------------------------------------------------------
 /**
  * Register the settings page.
- * @param ctx - the client root context (slots, locale, settings Remotes).
+ * @param ctx - the client root context (slots, locale, connection).
  */
 export function apply(ctx) {
   const locale = () => (ctx.locale?.getSnapshot?.()?.active === 'zh' ? 'zh' : 'en')
@@ -651,16 +662,22 @@ export function apply(ctx) {
       inject: () => ({
         hooks: { locale: ctx.locale },
         load: async () => {
-          const response = await ctx.remote.settings.describe()
-          if (response.ok !== true) return { ok: false, error: response.error.message }
-          const view = response.value.namespaces.find((entry) => entry.ns === NS)
+          // dsh-harness rc2-compat host: no `remote.settings` service in the
+          // rc.2 web realm — read the namespace through the typed settings
+          // client on the `connection` seam; the wire wraps the payload in
+          // `result`.
+          const response = await ctx.connection.api.settings.describe({})
+          if (response.result.ok !== true) return { ok: false, error: response.result.error.message }
+          const view = response.result.value.namespaces.find((entry) => entry.ns === NS)
           if (view === undefined) return { ok: false, error: 'ns-missing' }
           return { ok: true, value: view }
         },
         save: async (view, patch) => {
-          const response = await ctx.remote.settings.update(NS, patch, view.revision)
-          if (response.ok !== true) return { ok: false, code: response.error.code, error: response.error.message }
-          return { ok: true, value: response.value }
+          // dsh-harness rc2-compat host: replace one namespace section
+          // wholesale, CAS on the revision the user is editing.
+          const response = await ctx.connection.api.settings.replace({ ns: NS, section: patch, expectedRevision: view.revision })
+          if (response.result.ok !== true) return { ok: false, code: response.result.error.code, error: response.result.error.message }
+          return { ok: true, value: response.result.value }
         },
       }),
     },
@@ -672,4 +689,4 @@ export function apply(ctx) {
 export const name = 'gbrain'
 
 /** Hard client dependencies. */
-export const inject = ['slots', 'locale', 'remote', 'remote.settings']
+export const inject = ['slots', 'locale', 'connection']
