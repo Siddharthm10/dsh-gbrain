@@ -85,7 +85,17 @@ export function apply(ctx, config) {
   // HTTP routes for the settings-tab UI.
   ctx.inject(['webServer'], (hostCtx) => {
     hostCtx.effect(
-      () => mountGbrainRoutes({ ...hostCtx, get: (key) => (hostCtx.get ? hostCtx.get(key) : hostCtx[key]) }, getConfig),
+      () => {
+        // A thrown mount failure would otherwise be swallowed by the effect
+        // machinery (logged only inside the tree), leaving the panel 404ing
+        // silently — surface it on the daemon console instead.
+        try {
+          return mountGbrainRoutes({ ...hostCtx, get: (key) => (hostCtx.get ? hostCtx.get(key) : hostCtx[key]) }, getConfig)
+        } catch (error) {
+          console.error('[dsh-gbrain] failed to mount http routes:', error)
+          throw error
+        }
+      },
       'dsh-gbrain: http routes',
     )
   })

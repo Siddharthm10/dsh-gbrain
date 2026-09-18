@@ -11,7 +11,9 @@
  *
  * Two execution paths, deliberately different:
  *   - short-lived reads (status / doctor / search / config / probe) run
- *     through the DSH `subprocess` service with a hard timeout;
+ *     through the DSH `subprocess` service (or a raw node child when the
+ *     profile has no subprocess seam, e.g. the web panel) with a hard
+ *     timeout;
  *   - the long `embed --stale` job is a detached node child (it can outlive
  *     any request and any fiber), writing to a log file under the brain,
  *     with a small state file so status survives a web restart.
@@ -55,6 +57,58 @@ export function cliPrefix(cfg) {
 }
 
 /**
+ * Raw node:child_process spawn implementing the DSH subprocess handle
+ * contract (`{done, collected}`), used when the host profile has no
+ * `subprocess` service (the web panel). stdout/stderr are collected up to
+ * the requested maxBytes; an aborted signal escalates SIGTERM → SIGKILL
+ * after graceMs and rejects `done`.
+ * @param spec - {argv, cwd, env, stdio, graceMs, signal}.
+ * @returns {done: Promise<{exitCode}>, collected: {stdout, stderr}}.
+ */
+function rawSpawn(spec) {
+  const { argv, cwd, env, stdio, graceMs, signal } = spec
+  const capOut = stdio?.stdout?.maxBytes ?? COLLECT_BYTES
+  const capErr = stdio?.stderr?.maxBytes ?? COLLECT_BYTES
+  const child = spawn(argv[0], argv.slice(1), {
+    cwd,
+    env: { ...process.env, ...(env ?? {}) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  let out = ''
+  let err = ''
+  let killed = false
+  const killTree = () => {
+    if (killed) return
+    killed = true
+    try { child.kill('SIGTERM') } catch { /* already gone */ }
+    if (graceMs > 0) {
+      const t = setTimeout(() => { try { child.kill('SIGKILL') } catch { /* already gone */ } }, graceMs)
+      t.unref?.()
+    }
+  }
+  if (signal) {
+    if (signal.aborted) killTree()
+    else signal.addEventListener('abort', killTree, { once: true })
+  }
+  child.stdout.on('data', (d) => { if (out.length < capOut) out += d })
+  child.stderr.on('data', (d) => { if (err.length < capErr) err += d })
+  const done = new Promise((resolve, reject) => {
+    child.on('error', (e) => reject(new Error(String(e?.message ?? e))))
+    child.on('close', (code, sigName) => {
+      if (signal?.aborted) reject(signal.reason ?? new Error('aborted'))
+      else resolve({ exitCode: code ?? (sigName ? -1 : 0) })
+    })
+  })
+  return {
+    done,
+    collected: {
+      stdout: { readFrom: () => ({ text: out }) },
+      stderr: { readFrom: () => ({ text: err }) },
+    },
+  }
+}
+
+/**
  * Create a gbrain client bound to a config snapshot and a DSH subprocess
  * spawn function.
  * @param cfg - resolved config.
@@ -73,14 +127,14 @@ export function createGbrainClient(cfg, spawnFn, fetchImpl = fetch) {
    * @returns {exitCode, stdout, stderr, timedOut}.
    */
   async function run(cmd, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-    if (typeof spawnFn !== 'function') {
-      return { exitCode: -1, stdout: '', stderr: 'no subprocess service (profile without the subprocess seam)', timedOut: false }
-    }
+    // Profiles without the DSH `subprocess` service (e.g. the web panel) fall
+    // back to a raw node child that honours the same handle contract.
+    const spawnHandle = typeof spawnFn === 'function' ? spawnFn : rawSpawn
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(new Error('gbrain operation timed out')), timeoutMs)
     let handle
     try {
-      handle = spawnFn({
+      handle = spawnHandle({
         argv: [...cli, ...cmd],
         cwd: cfg.gbrainHome,
         env: env(),
@@ -297,7 +351,10 @@ export function startEmbedJob(cfg, bun, cli) {
     mkdirSync(dirname(logFile), { recursive: true })
     mkdirSync(dirname(stateFile(cfg.gbrainHome)), { recursive: true })
     const out = openSync(logFile, 'a')
-    const child = spawn(bun, [...cli, 'embed', '--stale'], {
+    // `cli` is [bun, gbrainBin] when gbrainBin is configured, or the bare
+    // ['gbrain'] for PATH resolution — in the bare form bun must still lead.
+    const argv = cli.length > 1 ? [...cli, 'embed', '--stale'] : [bun, ...cli, 'embed', '--stale']
+    const child = spawn(argv[0], argv.slice(1), {
       cwd: cfg.gbrainHome,
       env: { ...process.env, GBRAIN_HOME: cfg.gbrainHome },
       detached: true,
@@ -305,7 +362,7 @@ export function startEmbedJob(cfg, bun, cli) {
     })
     closeSync(out)
     child.unref()
-    const next = { pid: child.pid, logFile, startedAt, command: `${bun} ${cli.join(' ')} embed --stale` }
+    const next = { pid: child.pid, logFile, startedAt, command: argv.join(' ') }
     writeFileSync(stateFile(cfg.gbrainHome), JSON.stringify(next, null, 2))
     return { started: true, pid: child.pid, logFile, startedAt }
   } catch (error) {

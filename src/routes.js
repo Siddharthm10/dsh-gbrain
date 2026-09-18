@@ -69,15 +69,27 @@ async function readJsonBody(req, limit = 64 * 1024) {
  */
 export function mountGbrainRoutes(ctx, getConfig) {
   const webServer = ctx.get?.('webServer') ?? ctx.webServer
-  const register = webServer?.register
+  // `.bind(webServer)` is required: `register` is a class method and calling
+  // the detached reference loses `this` (strict mode), so the first route
+  // registration would throw `Cannot read properties of undefined
+  // (reading 'exact')` inside the webserver.
+  const register = webServer?.register?.bind(webServer)
   if (typeof register !== 'function') {
     ctx.logger?.warn?.('dsh-gbrain: no webServer service; routes not mounted')
     return []
   }
-  const log = (message) => ctx.logger?.info?.(message)
+  const log = (message) => (ctx.get ? ctx.get('logger') : undefined)?.info?.(message)
   const disposers = []
 
-  const client = () => createGbrainClient(getConfig(), ctx.subprocess?.spawn ?? ctx.get?.('subprocess')?.spawn)
+  // Bind `spawn` to its service: it is a class method, and the DSH handle
+  // contract needs the instance as `this`. When the host profile has no
+  // `subprocess` service (the web panel), pass `undefined` — the client
+  // falls back to a raw node child of its own.
+  const subprocessService = ctx.subprocess ?? (ctx.get ? ctx.get('subprocess') : undefined)
+  const client = () => createGbrainClient(getConfig(),
+    subprocessService && typeof subprocessService.spawn === 'function'
+      ? subprocessService.spawn.bind(subprocessService)
+      : undefined)
 
   function on(path, handler) {
     const disposer = register({
