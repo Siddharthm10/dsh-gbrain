@@ -227,10 +227,16 @@ export function mountGbrainRoutes(ctx, getConfig) {
     try {
       await docker(['stop', cfg.containerName]) // idempotent; error if absent
       await docker(['rm', cfg.containerName])
+      // Verified recipe (nemo-brain HANDOFF.md → "Embedding server"):
+      // -np 4 -t 4 = required threading; -c 16384 -np 4 = 4096 tokens/slot
+      // (llama.cpp splits ctx across slots; 8192/4 = 2048 400s on big chunks);
+      // --gpus all + --ngl 99 = GPU mode; --sleep-idle-seconds 300 = unload
+      // the model after 5 min idle, reload on next request.
       await docker([
         'run', '-d',
         '--name', cfg.containerName,
         '--restart', 'unless-stopped',
+        ...(device === 'gpu' ? ['--gpus', 'all'] : []),
         '-p', `0.0.0.0:${cfg.containerHostPort}:8080`,
         '-v', `${String(cfg.modelHostDir).replace(/\/+$/, '')}:/models:ro`,
         cfg.containerImage,
@@ -240,9 +246,11 @@ export function mountGbrainRoutes(ctx, getConfig) {
         '--host', '0.0.0.0',
         '--embeddings',
         '--ngl', ngl,
-        '-c', '8192',
+        '-np', '4',
+        '-t', '4',
+        '-c', '16384',
         '-b', '128',
-        '-t', '16',
+        '--sleep-idle-seconds', '300',
         ...(cfg.embedServerAPIKey ? ['--api-key', cfg.embedServerAPIKey] : []),
       ], { fatal: true, timeoutMs: 120_000 })
       sendJson(res, 200, { ok: true, device, ngl, steps })

@@ -230,12 +230,21 @@ test('POST /container/recreate: cpu -> -ngl 0, correct mount + port', async () =
   assert.equal(run[portIdx + 1], '0.0.0.0:8811:8080')
   const nglIdx = run.indexOf('--ngl')
   assert.equal(run[nglIdx + 1], '0')
+  assert.equal(run.indexOf('--gpus'), -1) // cpu mode: no GPU passthrough
+  const cIdx = run.indexOf('-c')
+  assert.equal(run[cIdx + 1], '16384') // slot ctx = 16384/4 = 4096 (verified recipe)
+  const npIdx = run.indexOf('-np')
+  assert.equal(run[npIdx + 1], '4')
+  const sleepIdx = run.indexOf('--sleep-idle-seconds')
+  assert.equal(run[sleepIdx + 1], '300')
 })
 
 test('POST /container/recreate: gpu -> -ngl 99; fatal run failure -> 500 with steps', async () => {
   let callCount = 0
+  const seen = []
   const spawnImpl = (opts) => {
     callCount += 1
+    seen.push(opts.argv)
     const failed = opts.argv.includes('run')
     return {
       done: Promise.resolve({ exitCode: failed ? 1 : 0, signal: null }),
@@ -252,5 +261,11 @@ test('POST /container/recreate: gpu -> -ngl 99; fatal run failure -> 500 with st
   assert.equal(res.json.ok, false)
   assert.match(res.json.error, /docker run .* failed/)
   assert.equal(res.json.steps.length, 3)
+  // gpu mode passes --gpus all and the verified recipe
+  const run = seen[seen.length - 1]
+  const gpusIdx = run.indexOf('--gpus')
+  assert.equal(run[gpusIdx + 1], 'all')
+  const nglIdx = run.indexOf('--ngl')
+  assert.equal(run[nglIdx + 1], '99')
   void callCount
 })
