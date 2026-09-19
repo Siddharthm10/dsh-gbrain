@@ -88,11 +88,20 @@ test('run: argv prefix, GBRAIN_HOME env, cwd', async () => {
   assert.equal(calls[0].cwd, '/test/brain')
 })
 
-test('run: without a subprocess service reports a clean error', async () => {
-  const client = createGbrainClient(cfg, undefined)
-  const result = await client.version()
-  assert.equal(result.exitCode, -1)
-  assert.match(result.stderr, /no subprocess service/)
+test('run: without a subprocess service falls back to raw node spawn', async () => {
+  // Profiles without the DSH `subprocess` service (the web panel) run the
+  // CLI through a raw node:child_process spawn with the same handle contract.
+  const dir = mkdtemp('dsh-gbrain-raw-')
+  const fake = join(dir, 'bun')
+  writeFileSync(fake, '#!/bin/sh\necho fake-gbrain-version\n', { mode: 0o755 })
+  try {
+    const client = createGbrainClient({ ...cfg, gbrainHome: dir, bunBin: fake, gbrainBin: join(dir, 'gbrain') }, undefined)
+    const result = await client.version()
+    assert.equal(result.exitCode, 0)
+    assert.match(result.stdout, /fake-gbrain-version/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -223,8 +232,10 @@ test('embed job: start -> running -> stop -> gone', async () => {
   const jobCfg = { ...cfg, gbrainHome: home }
   // `node -e <long-lived script> embed --stale` — node runs the -e script
   // (the trailing args are just process.argv), so the child stays alive.
+  // `cli` is the full command prefix [executable, ...args]: startEmbedJob
+  // appends `embed --stale` and never re-prepends bun.
   const bun = process.execPath
-  const cli = ['-e', 'setInterval(()=>{},1000)']
+  const cli = [process.execPath, '-e', 'setInterval(()=>{},1000)']
   try {
     const started = startEmbedJob(jobCfg, bun, cli)
     assert.equal(started.started, true)
