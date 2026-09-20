@@ -47,6 +47,44 @@ uncommon port), mounting the model directory read-only, with `Qwen3-Embedding-
 - **CPU** → `-ngl 0` (safe: the 0.6B embed model costs the LLM nothing)
 - **GPU** → `-ngl 99` (fast, needs ~1–1.5 GB VRAM)
 
+## This deployment: one brain, two machines
+
+This repo also carries the deploy scripts for the current single-brain
+topology — **one Postgres brain on the PC, the Mac as a thin client** — so
+there is exactly one database, one set of containers, and no second gbrain
+install with its own sync to drift out of step.
+
+```
+ LAN (WiFi)
+ ┌─────────────────┐          ┌───────────────────────────────────────────┐
+ │ MAC             │ HTTP     │ PC 192.168.0.145 — docker (gbrain-net):  │
+ │ • Obsidian =    │ MCP+     │ • gbrain-pg    Postgres+pgvector :5432   │
+ │   second-brain  │ OAuth    │   (THE brain DB, 127.0.0.1 only)         │
+ │   git repo      │ ───────► │ • gbrain-serve serve --http :8787        │
+ │ • gbrain thin   │  :8787   │   (OAuth 2.1 + /mcp + dashboard)         │
+ │   client (no DB)│          │ • gbrain-embed llama-server GPU :8811    │
+ └─────────────────┘          │ • qwen38-27b  LLM :8823                  │
+        git push              └───────────────────────────────────────────┘
+        ▼
+     GitHub ──► PC: gbrain sync --source obsidian  (manual, no cron)
+```
+
+- `deploy/serve/` — the `gbrain-serve` container (Dockerfile +
+  `run-serve.sh`). The brain host runs `gbrain serve --http` with OAuth 2.1;
+  the Mac authenticates with the "mac" client (scopes `read write`, federated
+  read across all sources, writes land in `default`). The issuer URL is baked
+  at container start (`GBRAIN_PUBLIC_URL`) — if the PC's LAN IP changes,
+  re-run `run-serve.sh` with the override.
+- `deploy/macos/` — the Mac handoff: `setup.sh` (installs bun + gbrain
+  **pinned to the same tag as the PC host** + `gbrain init --mcp-only` with
+  pre-flight OAuth/MCP smoke) and a README with the daily flow, the manual
+  sync recipe (with the `GIT_SSH_COMMAND` export this host needs), and
+  troubleshooting (incl. the safe-chunks fence: remote search only sees pages
+  with `chunker_version >= 4`; re-seal with `gbrain reindex --markdown`).
+- **Mac content path**: write in Obsidian on the Mac → the vault is the
+  `second-brain` repo → push → on the PC run `gbrain sync --source obsidian`.
+  That is the *only* sync — there is no second gbrain anywhere.
+
 ## Install
 
 ```sh
